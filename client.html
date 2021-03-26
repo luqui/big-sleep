@@ -1,0 +1,24 @@
+<html>
+ <head>
+  <style>
+    body { background: black }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script language="javascript">
+  $(function() {
+    var t = 0;
+    var go = function() {
+      console.log('refresh', t);
+      $('#theImage').attr('src', 'progress.png?t=' + t);
+      t++;
+      setTimeout(go, 2000);
+    };
+    go();
+  });
+  </script>
+ </head>
+ <body>
+  <img id="theImage" />
+ </body>
+</html>
+
