@@ -350,12 +350,15 @@ class Imagine(nn.Module):
         self.model = self.model.cuda()
         self.optimizer = Adam(self.model.model.latents.parameters(), self.lr)
 
+    def loss(self):
+        losses = self.model(self.encoded_texts["max"], self.encoded_texts["min"])
+        return sum(losses)
+
     def train_step(self, epoch, i, pbar=None):
         total_loss = 0
 
         for _ in range(self.gradient_accumulate_every):
-            losses = self.model(self.encoded_texts["max"], self.encoded_texts["min"])
-            loss = sum(losses) / self.gradient_accumulate_every
+            loss = self.loss() / self.gradient_accumulate_every
             total_loss += loss
             loss.backward()
 
