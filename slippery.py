@@ -1,6 +1,9 @@
 from big_sleep import big_sleep
 from tqdm import tqdm, trange
 import torchvision.io
+import torchvision.utils
+        
+        
 import torch.linalg
 import os
 import json
@@ -66,9 +69,14 @@ class Slippery(big_sleep.Imagine):
                     self.image_weight = 0
 
                 last_guidance = guidance
-            loss = self.train_step(0, step, image_pbar)
+
+            def on_image(image):
+                torchvision.utils.save_image(image.cpu(), f'./out.{step}.png')
+                os.system(f'( pngquant -o out.{step}.png --force out.{step}.png; ln -sf out.{step}.png progress.png ) &')
+                image_pbar.update(1)
+
+            loss = self.train_step(0, step, on_image)
             image_pbar.set_description(f'loss: {loss}')
-            os.system(f'( pngquant -o out.{step}.png --force out.{step}.png; ln -sf out.{step}.png progress.png ) &')
 
             step += 1
 

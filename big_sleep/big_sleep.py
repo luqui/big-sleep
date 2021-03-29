@@ -265,7 +265,6 @@ class Imagine(nn.Module):
         max_classes = None,
         class_temperature = 2.,
         save_date_time = False,
-        save_best = False,
         experimental_resample = False,
         ema_decay = 0.99
     ):
@@ -306,7 +305,6 @@ class Imagine(nn.Module):
         self.save_progress = save_progress
         self.save_date_time = save_date_time
 
-        self.save_best = save_best
         self.current_best_score = 0
 
         self.open_folder = open_folder
@@ -354,7 +352,7 @@ class Imagine(nn.Module):
         losses = self.model(self.encoded_texts["max"], self.encoded_texts["min"])
         return sum(losses)
 
-    def train_step(self, epoch, i, pbar=None):
+    def train_step(self, epoch, i, image_callback=None):
         total_loss = 0
 
         for _ in range(self.gradient_accumulate_every):
@@ -371,23 +369,10 @@ class Imagine(nn.Module):
                 self.model.model.latents.eval()
                 losses = self.model(self.encoded_texts["max"], self.encoded_texts["min"])
                 top_score, best = torch.topk(losses[2], k = 1, largest = False)
-                image = self.model.model()[best].cpu()
+                image = self.model.model()[best]
                 self.model.model.latents.train()
-
-                save_image(image, str(self.filename))
-                if pbar is not None:
-                    pbar.update(1)
-                else:
-                    print(f'image updated at "./{str(self.filename)}"')
-
-                if self.save_progress:
-                    total_iterations = epoch * self.iterations + i
-                    num = total_iterations // self.save_every
-                    save_image(image, Path(f'./{self.textpath}.{num}.png'))
-
-                if self.save_best and top_score.item() < self.current_best_score:
-                    self.current_best_score = top_score.item()
-                    save_image(image, Path(f'./{self.textpath}.best.png'))
+                if image_callback is not None:
+                    image_callback(image)
 
         return total_loss
 
