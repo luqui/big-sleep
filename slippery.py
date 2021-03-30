@@ -10,6 +10,19 @@ import json
 import fire
 import sys
 import time
+import signal
+
+# graceful keyboard interrupt
+
+terminate = False
+
+def signal_handling(signum,frame):
+    global terminate
+    print("Detected keyboard interrupt; exiting...")
+    terminate = True
+
+signal.signal(signal.SIGINT,signal_handling)
+
 
 class Slippery(big_sleep.Imagine):
     def __init__(self, *args, **kwargs):
@@ -30,6 +43,7 @@ class Slippery(big_sleep.Imagine):
         return text_loss + image_loss
 
     def forward(self):
+        global terminate
         print(f'Generating')
 
         self.model(self.encoded_texts["max"][0])  # warmup
@@ -43,6 +57,8 @@ class Slippery(big_sleep.Imagine):
         last_guidance = {}
         guidance = {}
         while True:
+            if terminate:
+                return
             try:
                 fh = open('PROMPT', 'r')
                 guidance = json.load(fh)

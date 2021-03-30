@@ -8,7 +8,6 @@ from torchvision.utils import save_image
 import os
 import sys
 import subprocess
-import signal
 import string
 import re
 
@@ -22,16 +21,6 @@ from big_sleep.biggan import BigGAN
 from big_sleep.clip import load, tokenize
 
 assert torch.cuda.is_available(), 'CUDA must be available in order to use Deep Daze'
-
-# graceful keyboard interrupt
-
-terminate = False
-
-def signal_handling(signum,frame):
-    global terminate
-    terminate = True
-
-signal.signal(signal.SIGINT,signal_handling)
 
 # helpers
 
@@ -375,26 +364,3 @@ class Imagine(nn.Module):
                     image_callback(image)
 
         return total_loss
-
-    def forward(self):
-        penalizing = ""
-        if len(self.text_min) > 0:
-            penalizing = f'penalizing "{self.text_min}"'
-        print(f'Imagining "{self.text}" {penalizing}...')
-        self.model(self.encoded_texts["max"][0]) # one warmup step due to issue with CLIP and CUDA
-
-        if self.open_folder:
-            open_folder('./')
-            self.open_folder = False
-
-        image_pbar = tqdm(total=self.total_image_updates, desc='image update', position=2, leave=True)
-        for epoch in trange(self.epochs, desc = '      epochs', position=0, leave=True):
-            pbar = trange(self.iterations, desc='   iteration', position=1, leave=True)
-            image_pbar.update(0)
-            for i in pbar:
-                loss = self.train_step(epoch, i, image_pbar)
-                pbar.set_description(f'loss: {loss.item():04.2f}')
-
-                if terminate:
-                    print('detecting keyboard interrupt, gracefully exiting')
-                    return
