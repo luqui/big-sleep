@@ -62,7 +62,7 @@ class Slippery(big_sleep.Imagine):
                 torch.save(self, "model.pickle")
                 return
             try:
-                fh = open('PROMPT', 'r')
+                fh = open('PROMPT.json', 'r')
                 guidance = json.load(fh)
                 fh.close()
             except:
