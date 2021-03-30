@@ -2,8 +2,8 @@ from big_sleep import big_sleep
 from tqdm import tqdm, trange
 import torchvision.io
 import torchvision.utils
-        
-        
+ 
+import torch
 import torch.linalg
 import os
 import json
@@ -58,6 +58,8 @@ class Slippery(big_sleep.Imagine):
         guidance = {}
         while True:
             if terminate:
+                print("Saving to model.pickle")
+                torch.save(self, "model.pickle")
                 return
             try:
                 fh = open('PROMPT', 'r')
@@ -96,10 +98,13 @@ class Slippery(big_sleep.Imagine):
 
             step += 1
 
+def load():
+    if os.path.exists('model.pickle'):
+        return torch.load('model.pickle')
+    else:
+        return Slippery('out', epochs=1, iterations=10000, save_every=1, save_progress=True)
 
 def train():
-    imagine = Slippery('out', epochs=1, iterations=10000, save_every=1, save_progress=True)
-
-    imagine()
+    load()()
 
 fire.Fire(train)
