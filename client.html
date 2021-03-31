@@ -2,23 +2,80 @@
  <head>
   <style>
     body { background: black }
+    #prompt {
+      font-family: monospace;
+      width: 512px;
+      height: 256px;
+      background: #221111;
+      color: lightgreen;
+    }
+    #response {
+      color: lightgreen;
+      font-weight: bold;
+    }
+    .description {
+      color: lightgray;
+    }
   </style>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script language="javascript">
   $(function() {
     var t = 0;
     var go = function() {
-      console.log('refresh', t);
       $('#theImage').attr('src', 'progress.png?t=' + t);
       t++;
       setTimeout(go, 2000);
     };
     go();
+
+    $.ajax({ url: 'prompt.json' }).then(function(data) {
+      $('#prompt').val(JSON.stringify(data, null, 2));
+    });
+
+    $('#submit').click(function() {
+      try {
+        var j = JSON.stringify(JSON.parse($('#prompt').val()));
+      }
+      catch (e) {
+        alert(e);
+        return;
+      }
+      $.ajax('set_prompt',{
+        'data': j,
+        'type': 'POST',
+        'processData': false,
+        'contentType': 'application/json'
+      }).then(function() {
+        $('#response').text('Prompt Set');
+        setTimeout(function() { $('#response').empty(); }, 2000);
+      }).fail(function(e) {
+        console.log(e);
+        alert(e.status + " " + e.statusText);
+      });
+    });
+
   });
   </script>
  </head>
  <body>
   <img id="theImage" />
+  <div>
+    <textarea id="prompt"></textarea>
+  </div>
+  <div>
+    <button id="submit">Set New Prompt</button>
+    <span id="response"></span>
+  </div>
+  <div class="description">
+    <p>Oh, hi. This is a simple AI art page I made based on the fabulous work of <a href="https://colab.research.google.com/drive/1NCceX2mbiKOSlAd_o7IU7nA9UskKN5WR?usp=sharing#scrollTo=Nq0wA-wc-P-s">Ryan Murdock</a> and <a href="https://github.com/lucidrains/big-sleep">Phil Wang</a>.  It uses some bleeding edge AI technology to generate images from textual prompts.</p>
+    <p>As long as you can see this page, it's working hard on the prompt in the text box below, making slight adjustments to the image.  You can change the prompt just by editing the text box and then clicking the button below it.  You won't see the results immediately, because art takes time, but give it about 30 seconds and you should start to notice a difference.</p>
+    <p>The prompt is in JSON which is a simple <a href="https://www.wikiwand.com/en/Pidgin">pidgin</a> that computers and humans can use to communicate.  You don't need to know it -- just change the words between quotes to more differenter words.  Don't add or remove any quotation marks.</p>
+   <ul>
+    <li>The <tt>"prompt"</tt> field is one or more phrases to try to make the image look like.  To do multiple phrases, separate them with a double backslash <tt>\\</tt>.</li>
+    <li>The <tt>"avoid"</tt> field is one or more phrases to try to make the image <i>not</i> look like, separated the same way.</li>
+   </ul>
+   <p>This is running on a server somewhere off in the cloud, so you're sharing this artwork with everyone else in the world -- there's only one.  I think that's kind of cool honestly. If somebody else is playing with the toy at the same time you are, they might change your prompt.  Reload the page every once in a while if you think this might be happening so you can see what they changed it to. Have fun playing together.</p>
+  </div>
  </body>
 </html>
 

@@ -68,6 +68,9 @@ class Slippery(big_sleep.Imagine):
             except:
                 print(sys.exc_info()[0])
                 
+            if guidance is None:
+                guidance = {}
+
             prompt = guidance.get('prompt', '')
             avoid = guidance.get('avoid', '')
             learning_rate = guidance.get('learning_rate', 0.07)
