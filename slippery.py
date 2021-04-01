@@ -13,6 +13,7 @@ import sys
 import time
 import signal
 import queue
+import random
 
 # graceful keyboard interrupt
 
@@ -26,6 +27,26 @@ def signal_handling(signum,frame):
 signal.signal(signal.SIGINT,signal_handling)
 
 FRAME_QUEUE = queue.Queue(maxsize=100)
+
+def permute_guidance(guidance):
+    prompt = set(s for s in guidance.get('prompt', '').split('\\') if s)
+    avoid = set(s for s in guidance.get('avoid', '').split('\\') if s)
+
+    keywords = set.union(prompt, avoid)
+    if not keywords:
+        return False
+
+    new_prompt = prompt
+    new_avoid = avoid
+    while prompt == new_prompt and avoid == new_avoid:
+        new_prompt = set(s for s in keywords if random.randrange(2))
+        new_avoid = set(s for s in keywords if s not in new_prompt)
+        print(f'Generated {new_prompt} - {new_avoid}')
+
+    guidance['prompt'] = '\\'.join(new_prompt)
+    guidance['avoid'] = '\\'.join(new_avoid)
+    return True
+
 
 class Slippery(big_sleep.Imagine):
     def __init__(self, *args, **kwargs):
@@ -99,9 +120,10 @@ class Slippery(big_sleep.Imagine):
                 frames_since_record = 0
                 last_guidance = guidance
 
-            def on_image(image):
-                torchvision.utils.save_image(image.cpu(), f'./out.{step}.png')
-                FRAME_QUEUE.put(step)
+            def on_image(loss, image):
+                if loss < loss_record:
+                    torchvision.utils.save_image(image.cpu(), f'./out.{step}.png')
+                    FRAME_QUEUE.put(step)
 
             loss = self.train_step(0, step, on_image)
             if loss < loss_record:
@@ -113,11 +135,13 @@ class Slippery(big_sleep.Imagine):
                 frames_since_record += 1
 
             if frames_since_record > patience:
-                print("Patience exceeded -- swapping prompt and avoid")
-                with open('PROMPT.json', 'w') as fh:
-                    guidance['prompt'], guidance['avoid'] = guidance.get('avoid', ""), guidance.get('prompt', "")
-                    json.dump(guidance, fh, sort_keys=True, indent=2)
+                print("Patience exceeded -- permuting prompts")
+                if permute_guidance(guidance):
+                    with open('PROMPT.json', 'w') as fh:
+                        json.dump(guidance, fh, sort_keys=True, indent=2)
                     last_guidance = {}  # force reload
+                else:
+                    print("... but nothing to permute")
 
             step += 1
 
@@ -139,7 +163,7 @@ def image_process_thread():
             ) &
         """)
 
-        if step != 0 and step % 60 == 0:
+        if frame_index != 0 and frame_index % 60 == 0:
             time.sleep(5)  # hopefully avoid race conditions with the above... but hacky ofc
             os.system(f"""
                 ffmpeg -r 30 -f image2 -s 512x512 -i frame.%d.png -vcodec libx264 -pix_fmt yuv420p -bf 0 -r 30 _next.mp4

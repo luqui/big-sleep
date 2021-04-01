@@ -361,6 +361,6 @@ class Imagine(nn.Module):
                 image = self.model.model()[best]
                 self.model.model.latents.train()
                 if image_callback is not None:
-                    image_callback(image)
+                    image_callback(total_loss, image)
 
         return total_loss
