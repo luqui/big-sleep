@@ -82,6 +82,7 @@ class Slippery(big_sleep.Imagine):
         last_guidance = {}
         guidance = {}
         swap_prompt_avoid = False
+        last_emitted_frame = None
         while True:
             if terminate:
                 print("Saving to model.pickle")
@@ -102,6 +103,7 @@ class Slippery(big_sleep.Imagine):
             learning_rate = guidance.get('learning_rate', 0.07)
             image_prompt = guidance.get('image_prompt')
             patience = guidance.get('patience', 60)
+            max_diff = guidance.get('max_diff', 0)
 
             if last_guidance != guidance:
                 print(f'prompt: {prompt} - {avoid} | rate: {learning_rate}')
@@ -121,9 +123,11 @@ class Slippery(big_sleep.Imagine):
                 last_guidance = guidance
 
             def on_image(loss, image):
-                if loss < loss_record:
+                nonlocal last_emitted_frame
+                if last_emitted_frame is None or max_diff <= 0 or torch.linalg.norm(image - last_emitted_frame) > max_diff:
                     torchvision.utils.save_image(image.cpu(), f'./out.{step}.png')
                     FRAME_QUEUE.put(step)
+                    last_emitted_frame = image
 
             loss = self.train_step(0, step, on_image)
             if loss < loss_record:
