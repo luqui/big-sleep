@@ -56,8 +56,11 @@ class Slippery(big_sleep.Imagine):
             self.open_folder = False
 
         step = 0
+        loss_record = float('inf')
+        frames_since_record = 0
         last_guidance = {}
         guidance = {}
+        swap_prompt_avoid = False
         while True:
             if terminate:
                 print("Saving to model.pickle")
@@ -77,6 +80,7 @@ class Slippery(big_sleep.Imagine):
             avoid = guidance.get('avoid', '')
             learning_rate = guidance.get('learning_rate', 0.07)
             image_prompt = guidance.get('image_prompt')
+            patience = guidance.get('patience', 60)
 
             if last_guidance != guidance:
                 print(f'prompt: {prompt} - {avoid} | rate: {learning_rate}')
@@ -91,6 +95,8 @@ class Slippery(big_sleep.Imagine):
                     self.image_target = None
                     self.image_weight = 0
 
+                loss_record = float('inf')
+                frames_since_record = 0
                 last_guidance = guidance
 
             def on_image(image):
@@ -98,7 +104,20 @@ class Slippery(big_sleep.Imagine):
                 FRAME_QUEUE.put(step)
 
             loss = self.train_step(0, step, on_image)
-            print(f"frame {step}; loss: {loss}")
+            if loss < loss_record:
+                print(f"frame {step}; loss: {loss} (record)")
+                loss_record = loss
+                frames_since_record = 0
+            else:
+                print(f"frame {step}; loss: {loss} ({frames_since_record})")
+                frames_since_record += 1
+
+            if frames_since_record > patience:
+                print("Patience exceeded -- swapping prompt and avoid")
+                with open('PROMPT.json', 'w') as fh:
+                    guidance['prompt'], guidance['avoid'] = guidance.get('avoid', ""), guidance.get('prompt', "")
+                    json.dump(guidance, fh, sort_keys=True, indent=2)
+                    last_guidance = {}  # force reload
 
             step += 1
 
@@ -113,12 +132,15 @@ def image_process_thread():
         print(f"process {step}")
 
         os.system(f"""
-            pngquant -o frame.{frame_index}.png --force out.{step}.png
-            ln -sf frame.{frame_index}.png progress.png
-            rm -f out.{step}.png
+            (
+                pngquant -o frame.{frame_index}.png --force out.{step}.png
+                ln -sf frame.{frame_index}.png progress.png
+                rm -f out.{step}.png
+            ) &
         """)
 
         if step != 0 and step % 60 == 0:
+            time.sleep(5)  # hopefully avoid race conditions with the above... but hacky ofc
             os.system(f"""
                 ffmpeg -r 30 -f image2 -s 512x512 -i frame.%d.png -vcodec libx264 -pix_fmt yuv420p -bf 0 -r 30 _next.mp4
                 if [ -e progress.mp4 ]; then
