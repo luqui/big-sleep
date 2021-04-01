@@ -7,6 +7,10 @@ api.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 def get_progress():
     return flask.send_file('progress.png', mimetype='image/png')
 
+@api.route('/progress.mp4', methods=['GET'])
+def get_progress_video():
+    return flask.send_file('progress.mp4', mimetype='video/mp4')
+
 @api.route('/client.html', methods=['GET'])
 def get_client():
     return flask.send_file('client.html', mimetype='text/html')
@@ -24,4 +28,4 @@ def set_prompt():
 
 
 if __name__ == '__main__':
-    api.run(host='0.0.0.0', port=5555)
+    api.run(host='0.0.0.0', port=80)

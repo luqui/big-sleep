@@ -5,12 +5,14 @@ import torchvision.utils
  
 import torch
 import torch.linalg
+import threading
 import os
 import json
 import fire
 import sys
 import time
 import signal
+import queue
 
 # graceful keyboard interrupt
 
@@ -23,6 +25,7 @@ def signal_handling(signum,frame):
 
 signal.signal(signal.SIGINT,signal_handling)
 
+FRAME_QUEUE = queue.Queue(maxsize=100)
 
 class Slippery(big_sleep.Imagine):
     def __init__(self, *args, **kwargs):
@@ -53,7 +56,6 @@ class Slippery(big_sleep.Imagine):
             self.open_folder = False
 
         step = 0
-        image_pbar = tqdm(desc='image update', position=2, leave=True)
         last_guidance = {}
         guidance = {}
         while True:
@@ -93,13 +95,49 @@ class Slippery(big_sleep.Imagine):
 
             def on_image(image):
                 torchvision.utils.save_image(image.cpu(), f'./out.{step}.png')
-                os.system(f'( pngquant -o out.{step}.png --force out.{step}.png; ln -sf out.{step}.png progress.png ) &')
-                image_pbar.update(1)
+                FRAME_QUEUE.put(step)
 
             loss = self.train_step(0, step, on_image)
-            image_pbar.set_description(f'loss: {loss}')
+            print(f"frame {step}; loss: {loss}")
 
             step += 1
+
+def image_process_thread():
+    frame_index = 0
+    while not terminate:
+        try:
+            step = FRAME_QUEUE.get(timeout=2)
+        except queue.Empty:
+            continue
+
+        print(f"process {step}")
+
+        os.system(f"""
+            pngquant -o frame.{frame_index}.png --force out.{step}.png
+            ln -sf frame.{frame_index}.png progress.png
+            rm -f out.{step}.png
+        """)
+
+        if step != 0 and step % 60 == 0:
+            os.system(f"""
+                ffmpeg -r 30 -f image2 -s 512x512 -i frame.%d.png -vcodec libx264 -pix_fmt yuv420p -bf 0 -r 30 _next.mp4
+                if [ -e progress.mp4 ]; then
+                    echo 'file progress.mp4' > list.txt
+                    echo 'file _next.mp4' >> list.txt
+                    ffmpeg -f concat -i list.txt -auto_convert 1 -c copy _progress.next.mp4
+                    mv _progress.next.mp4 progress.mp4
+                    rm -f list.txt _next.mp4
+                else
+                    mv _next.mp4 progress.mp4
+                fi
+
+                cp -f frame.{frame_index}.png tmp.png
+                ln -sf tmp.png progress.png
+                rm -f frame.*.png
+            """)
+            frame_index = 0
+        else:
+            frame_index += 1
 
 def load():
     if os.path.exists('model.pickle'):
@@ -110,4 +148,9 @@ def load():
 def train():
     load()()
 
+image_process = threading.Thread(target=image_process_thread)
+image_process.start()
+
 fire.Fire(train)
+
+image_process.join()
